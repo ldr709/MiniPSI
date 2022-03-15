@@ -72,6 +72,7 @@ namespace osuCrypto
 #endif // ENABLE_MIRACL
 		void outputBigPoly(u64 myInputSize, u64 theirInputSize, u64 psiSecParam, PRNG& prng, span<block> inputs, span<Channel> chls);
 		void outputBigPoly_elligator(u64 myInputSize, u64 theirInputSize, u64 psiSecParam, PRNG& prng, span<block> inputs, span<Channel> chls);
+		void outputBigPoly_moeller(u64 myInputSize, u64 theirInputSize, u64 psiSecParam, PRNG& prng, span<block> inputs, span<Channel> chls);
 
 		//void output(span<block> inputs, span<Channel> chls);
 		//void outputBestComm(span<block> inputs, span<Channel> chls);

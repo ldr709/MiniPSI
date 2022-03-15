@@ -474,7 +474,7 @@ void Mini19Receiver(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 num
 #endif
 
 
-void Mini19Sender_Ris(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 numBins, u64 numThreads = 1)
+void Mini19Sender_Ris(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 numBins, bool moeller, u64 numThreads = 1)
 {
     u64 psiSecParam = 40;
     PRNG prngSet(_mm_set_epi32(4253465, 3434565, 234435, 0));
@@ -498,7 +498,10 @@ void Mini19Sender_Ris(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 n
         sendChls[i] = ep1.addChannel("chl" + std::to_string(i), "chl" + std::to_string(i));
 
     //sender.outputBigPoly(inputs.size(), theirSetSize, 40, prng0, inputs, sendChls);
-    sender.outputBigPoly_elligator(inputs.size(), theirSetSize, 40, prng0, inputs, sendChls);
+    if (moeller)
+        sender.outputBigPoly_moeller(inputs.size(), theirSetSize, 40, prng0, inputs, sendChls);
+    else
+        sender.outputBigPoly_elligator(inputs.size(), theirSetSize, 40, prng0, inputs, sendChls);
     std::cout << gTimer << std::endl;
 
     for (u64 i = 0; i < numThreads; ++i)
@@ -529,7 +532,7 @@ void Mini19Sender_Ris(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 n
     ep1.stop();     ios.stop();
 }
 
-void Mini19Receiver_Ris(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 numBins, u64 numThreads = 1)
+void Mini19Receiver_Ris(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 numBins, bool moeller, u64 numThreads = 1)
 {
     u64 psiSecParam = 40;
     PRNG prngSet(_mm_set_epi32(4253465, 3434565, 234435, 0));
@@ -558,7 +561,10 @@ void Mini19Receiver_Ris(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64
         recvChls[i] = ep0.addChannel("chl" + std::to_string(i), "chl" + std::to_string(i));
 
     //recv.outputBigPoly(inputs.size(), theirSetSize, 40, prng1, inputs, recvChls);
-    recv.outputBigPoly_elligator(inputs.size(), theirSetSize, 40, prng1, inputs, recvChls);
+    if (moeller)
+        recv.outputBigPoly_moeller(inputs.size(), theirSetSize, 40, prng1, inputs, recvChls);
+    else
+        recv.outputBigPoly_elligator(inputs.size(), theirSetSize, 40, prng1, inputs, recvChls);
 
 
     std::cout << gTimer << std::endl;
@@ -1486,14 +1492,30 @@ int main(int argc, char** argv)
 
         //EchdSender(sendSetSize, recvSetSize, ipadrr, numThreads);
         //JL10Sender(sendSetSize, recvSetSize, "localhost:1212", numThreads);
-        Mini19Sender_Ris(sendSetSize, recvSetSize, "localhost:1214", numBins, numThreads);
+        Mini19Sender_Ris(sendSetSize, recvSetSize, "localhost:1214", numBins, false, numThreads);
 
 
     }
     else if (argv[1][0] == '-' && argv[1][1] == 'i' && atoi(argv[2]) == 1) {
         //EchdReceiver(recvSetSize, sendSetSize, ipadrr, numThreads);
         //JL10Receiver(recvSetSize, sendSetSize, "localhost:1212", numThreads);
-        Mini19Receiver_Ris(recvSetSize, sendSetSize, "localhost:1214", numBins, numThreads);
+        Mini19Receiver_Ris(recvSetSize, sendSetSize, "localhost:1214", numBins, false, numThreads);
+
+    }
+
+    else if (argv[1][0] == '-' && argv[1][1] == 'j' && atoi(argv[2]) == 0) {
+
+
+        //EchdSender(sendSetSize, recvSetSize, ipadrr, numThreads);
+        //JL10Sender(sendSetSize, recvSetSize, "localhost:1212", numThreads);
+        Mini19Sender_Ris(sendSetSize, recvSetSize, "localhost:1214", numBins, true, numThreads);
+
+
+    }
+    else if (argv[1][0] == '-' && argv[1][1] == 'j' && atoi(argv[2]) == 1) {
+        //EchdReceiver(recvSetSize, sendSetSize, ipadrr, numThreads);
+        //JL10Receiver(recvSetSize, sendSetSize, "localhost:1212", numThreads);
+        Mini19Receiver_Ris(recvSetSize, sendSetSize, "localhost:1214", numBins, true, numThreads);
 
     }
 
