@@ -14,6 +14,7 @@ using namespace NTL;
 
 namespace osuCrypto
 {
+#ifdef ENABLE_MIRACL
 	void MiniReceiver::outputBigPoly(u64 myInputSize, u64 theirInputSize, u64 psiSecParam, PRNG & prng, span<block> inputs, span<Channel> chls)
 	{
 		for (u64 i = 0; i < chls.size(); ++i)
@@ -1613,6 +1614,7 @@ namespace osuCrypto
 		std::cout << "r gkr done\n";
 
 	}
+#endif // ENABLE_MIRACL
 
 
 }

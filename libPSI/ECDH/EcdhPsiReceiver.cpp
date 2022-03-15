@@ -1,5 +1,6 @@
 #include "EcdhPsiReceiver.h"
 #include "cryptoTools/Crypto/Curve.h"
+#include "cryptoTools/Crypto/SodiumCurve.h"
 #include "cryptoTools/Crypto/sha1.h"
 #include "cryptoTools/Common/Log.h"
 #include <cryptoTools/Crypto/RandomOracle.h>
@@ -9,6 +10,23 @@
 
 namespace osuCrypto
 {
+	namespace
+	{
+#if defined(ENABLE_SODIUM)
+		using Point = Sodium::Rist25519;
+		using Number = Sodium::Prime25519;
+#define POINT_INIT {}
+#define POINT_INIT_EMPL ()
+
+#elif defined(ENABLE_MIRACL)
+		using Point = EccPoint;
+		using Number = EccNumber;
+#define POINT_INIT (curve)
+#define POINT_INIT_EMPL (curve)
+#else
+#error "No curve implementation!"
+#endif
+	}
 
     EcdhPsiReceiver::EcdhPsiReceiver()
     {
@@ -45,8 +63,7 @@ namespace osuCrypto
 
 		myStepSize = mN / numStep;
 		theirStepSize = mTheirInputSize / numStep;
-		
-		
+
 		Timer timer;
 
 		auto start = timer.setTimePoint("start");
@@ -68,15 +85,18 @@ namespace osuCrypto
 			auto& prng = thrdPrng[t];
 			u8 hashOut[SHA1::HashSize];
 
+#if defined(ENABLE_SODIUM)
+#elif defined(ENABLE_MIRACL)
 			EllipticCurve curve(myEccpParams, thrdPrng[t].get<block>());
+#endif
 
 			SHA1 inputHasher;
-			EccNumber b(curve);
-			EccPoint yb(curve), yba(curve), point(curve), xa(curve), xab(curve);
+			Number b POINT_INIT;
+			Point yb POINT_INIT, yba POINT_INIT, point POINT_INIT, xa POINT_INIT, xab POINT_INIT;
 			b.randomize(RcSeed);
-			
-			 for (u64 i = inputStartIdx; i < inputEndIdx; i += myStepSize)
-			 {
+
+			for (u64 i = inputStartIdx; i < inputEndIdx; i += myStepSize)
+			{
 				 auto curStepSize = std::min(myStepSize, inputEndIdx - i);
 
 				 std::vector<u8> sendBuff(yb.sizeBytes() * curStepSize);
@@ -110,7 +130,7 @@ namespace osuCrypto
 
 				 chl.asyncSend(std::move(sendBuff));
 
-			 }
+			}
 
 			/* auto ybTime = timer.setTimePoint("yb");
 			 auto ybTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(ybTime - start).count();*/
@@ -123,7 +143,7 @@ namespace osuCrypto
 
 			 //recv H(x)^a
 			 //std::cout << "recv H(x)^a" << std::endl;
-				 
+
 				 std::vector<u8>temp(xab.sizeBytes());
 
 				 //compute H(x)^a^b as map
@@ -174,7 +194,7 @@ namespace osuCrypto
 					 }
 				 }
 			 }
-		
+
 		/*	 auto xabTime = timer.setTimePoint("xab");
 			 auto xabTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(xabTime - ybTime).count();*/
 		//	 std::cout << "compute H(x)^ab:  " << xabTimeMs << "\n";
@@ -182,7 +202,7 @@ namespace osuCrypto
 
 };
 
-		
+
         std::vector<std::thread> thrds(chls.size());
         for (u64 i = 0; i < u64(chls.size()); ++i)
         {
@@ -289,7 +309,6 @@ namespace osuCrypto
 
 		u64 maskSizeByte = (40 +  log2(inputs.size() * mTheirInputSize) + 7) / 8;
 
-		auto curveParam = Curve25519;
 		auto RcSeed = mPrng.get<block>();
 
 		std::unordered_map<u32, block> mapXab;
@@ -321,11 +340,14 @@ namespace osuCrypto
 			auto& prng = thrdPrng[t];
 			u8 hashOut[SHA1::HashSize];
 
+#if defined(ENABLE_SODIUM)
+#elif defined(ENABLE_MIRACL)
 			EllipticCurve curve(myEccpParams, thrdPrng[t].get<block>());
+#endif
 
 			SHA1 inputHasher;
-			EccNumber b(curve);
-			EccPoint yb(curve), yba(curve), point(curve), xa(curve), xab(curve);
+			Number b POINT_INIT;
+			Point yb POINT_INIT, yba POINT_INIT, point POINT_INIT, xa POINT_INIT, xab POINT_INIT;
 			b.randomize(RcSeed);
 
 			for (u64 i = inputStartIdx; i < inputEndIdx; i += myStepSize)
@@ -543,7 +565,6 @@ namespace osuCrypto
 
 		u64 maskSizeByte = (40 + log2(inputs.size()*mTheirInputSize) + 7) / 8;
 
-		auto curveParam = Curve25519;
 		auto RcSeed = mPrng.get<block>();
 
 		std::unordered_map<u32, block> mapXab;
@@ -662,7 +683,7 @@ namespace osuCrypto
 				{
 					memcpy(xa, recvIter, crypto_core_ristretto255_BYTES);
 					recvIter += crypto_core_ristretto255_BYTES;
-					
+
 					//compute H(xi)^a^b
 					if (crypto_scalarmult_ristretto255(xab, b, xa) != 0) {
 

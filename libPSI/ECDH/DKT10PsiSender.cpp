@@ -1,20 +1,39 @@
 #include "DKT10PsiSender.h"
 #include "cryptoTools/Crypto/Curve.h"
+#include "cryptoTools/Crypto/SodiumCurve.h"
 #include "cryptoTools/Crypto/RandomOracle.h"
+#include "cryptoTools/Crypto/sha1.h"
 #include "cryptoTools/Common/Log.h"
 #include "cryptoTools/Network/Channel.h"
 
 namespace osuCrypto
 {
+	namespace
+	{
+#if defined(ENABLE_SODIUM)
+		using Point = Sodium::Rist25519;
+		using Number = Sodium::Prime25519;
+#define POINT_INIT {}
+#define POINT_INIT_EMPL ()
+
+#elif defined(ENABLE_MIRACL)
+		using Point = EccPoint;
+		using Number = EccNumber;
+#define POINT_INIT (mCurve)
+#define POINT_INIT_EMPL (mCurve)
+#else
+#error "No curve implementation!"
+#endif
+	}
 
     DKT10PsiSender::DKT10PsiSender()
     {
     }
 
-
     DKT10PsiSender::~DKT10PsiSender()
     {
     }
+
     void DKT10PsiSender::startPsi(u64 myInputSize, u64 theirInputSize, u64 secParam, block seed, span<block> inputs, span<Channel> chls)
     {
 		//####################### offline #########################
@@ -27,22 +46,31 @@ namespace osuCrypto
 		mTheirInputSize = theirInputSize;
 
 		mPrng.SetSeed(seed);
-		
+
+#if defined(ENABLE_SODIUM)
+		mFieldSize = 256;
+#elif defined(ENABLE_MIRACL)
 		EllipticCurve mCurve(myEccpParams, OneBlock);
+		//mCurve.getMiracl().IOBASE = 10;
 		mFieldSize = mCurve.bitCount();
 
+		Point mG POINT_INIT;
+		mG = mCurve.getGenerator();
+#endif
 
-		EccNumber nK(mCurve);
-		EccPoint pG(mCurve);
+		Number nK POINT_INIT;
 		nK.randomize(mPrng);
-		pG = mCurve.getGenerator();
 
-		auto g_k = pG*nK;
+#if defined(ENABLE_SODIUM)
+		auto g_k = Point::mulGenerator(nK);
+#elif defined(ENABLE_MIRACL)
+		auto g_k = mG*nK;
+#endif
 
 		u8* mG_K = new u8[g_k.sizeBytes()];
 		g_k.toBytes(mG_K); //g^k
 
-    
+
 		//####################### online #########################
 		gTimer.setTimePoint("s online start ");
 
@@ -57,7 +85,7 @@ namespace osuCrypto
 		u64 n1n2MaskBits = (40 + log2(mTheirInputSize*mMyInputSize));
 		u64 n1n2MaskBytes = (n1n2MaskBits + 7) / 8;
 
-		
+
 		std::vector<std::vector<u8>> sendBuff_mask(chls.size()); //H(x)^k
 
 
@@ -84,7 +112,7 @@ namespace osuCrypto
 
 			SHA1 inputHasher;
 			//EllipticCurve mCurve(myEccpParams, OneBlock);
-			EccPoint point(mCurve), yik(mCurve), yi(mCurve), xk(mCurve);
+			Point point POINT_INIT, yik POINT_INIT, yi POINT_INIT, xk POINT_INIT;
 
 			u8* temp= new u8[xk.sizeBytes()];
 
@@ -144,7 +172,7 @@ namespace osuCrypto
 				chl.asyncSend(std::move(sendBuff_yik));  //sending yi^k
 #endif
 			}
-		
+
 
 		};
 
@@ -196,7 +224,7 @@ namespace osuCrypto
 
 
 	}
-	
+
 	void DKT10PsiSender::startPsi_subsetsum(u64 myInputSize, u64 theirInputSize, u64 secParam, block seed, span<block> inputs, span<Channel> chls)
 	{
 		//####################### offline #########################
@@ -210,16 +238,25 @@ namespace osuCrypto
 
 		mPrng.SetSeed(seed);
 
+#if defined(ENABLE_SODIUM)
+		mFieldSize = 256;
+#elif defined(ENABLE_MIRACL)
 		EllipticCurve mCurve(myEccpParams, OneBlock);
+		//mCurve.getMiracl().IOBASE = 10;
 		mFieldSize = mCurve.bitCount();
 
+		Point mG POINT_INIT;
+		mG = mCurve.getGenerator();
+#endif
 
-		EccNumber nK(mCurve);
-		EccPoint pG(mCurve);
+		Number nK POINT_INIT;
 		nK.randomize(mPrng);
-		pG = mCurve.getGenerator();
 
-		auto g_k = pG*nK;
+#if defined(ENABLE_SODIUM)
+		auto g_k = Point::mulGenerator(nK);
+#elif defined(ENABLE_MIRACL)
+		auto g_k = mG*nK;
+#endif
 
 		u8* mG_K = new u8[g_k.sizeBytes()];
 		g_k.toBytes(mG_K); //g^k
@@ -266,7 +303,7 @@ namespace osuCrypto
 
 			SHA1 inputHasher;
 			//EllipticCurve mCurve(myEccpParams, OneBlock);
-			EccPoint point(mCurve), yik(mCurve), yi(mCurve), xk(mCurve);
+			Point point POINT_INIT, yik POINT_INIT, yi POINT_INIT, xk POINT_INIT;
 
 			u8* temp = new u8[xk.sizeBytes()];
 
@@ -392,21 +429,30 @@ namespace osuCrypto
 
 		mPrng.SetSeed(seed);
 
+#if defined(ENABLE_SODIUM)
+		mFieldSize = 256;
+#elif defined(ENABLE_MIRACL)
 		EllipticCurve mCurve(myEccpParams, OneBlock);
+		//mCurve.getMiracl().IOBASE = 10;
 		mFieldSize = mCurve.bitCount();
 
+		Point mG POINT_INIT;
+		mG = mCurve.getGenerator();
+#endif
 
-		EccNumber nK(mCurve);
-		EccPoint pG(mCurve);
+		Number nK POINT_INIT;
 		nK.randomize(mPrng);
-		pG = mCurve.getGenerator();
 
-		auto g_k = pG*nK;
+#if defined(ENABLE_SODIUM)
+		auto g_k = Point::mulGenerator(nK);
+#elif defined(ENABLE_MIRACL)
+		auto g_k = mG*nK;
+#endif
 
 		u8* mG_K = new u8[g_k.sizeBytes()];
 		g_k.toBytes(mG_K); //g^k
 
-		EccNumber nV(mCurve);
+		Number nV POINT_INIT;
 		nV.randomize(mPrng); //g^v for ZKDL
 
 		std::vector<block> hashX(inputs.size());
@@ -435,7 +481,7 @@ namespace osuCrypto
 
 		auto routine = [&](u64 t)
 		{
-			
+
 			u64 inputStartIdx = inputs.size() * t / chls.size();
 			u64 inputEndIdx = inputs.size() * (t + 1) / chls.size();
 			u64 subsetInputSize = inputEndIdx - inputStartIdx;
@@ -447,7 +493,7 @@ namespace osuCrypto
 			//EllipticCurve curve(p256k1, thrdPrng[t].get<block>());
 
 			//EllipticCurve mCurve(myEccpParams, OneBlock);
-			EccPoint point(mCurve), yik(mCurve), yi(mCurve), xk(mCurve);
+			Point point POINT_INIT, yik POINT_INIT, yi POINT_INIT, xk POINT_INIT;
 
 			u8* temp = new u8[xk.sizeBytes()];
 
@@ -512,14 +558,14 @@ namespace osuCrypto
 					yik = yi*nK; //yi^k
 
 					challeger_bytes[0] = new u8[yik.sizeBytes()];
-					yik.toBytes(challeger_bytes[0]); //yi^k  
+					yik.toBytes(challeger_bytes[0]); //yi^k
 
 
 					auto yiv = yi*nV;
 					challeger_bytes[1] = new u8[yiv.sizeBytes()];
 					yiv.toBytes(challeger_bytes[1]); //yi^v
 
-					
+
 					for (int idxChall = 0; idxChall < challeger_bytes.size(); idxChall++)
 						for (int idxBlock = 0; idxBlock < numSuperBlocks; idxBlock++)
 						{
@@ -537,14 +583,17 @@ namespace osuCrypto
 
 				std::vector<block> cipher_challenger(numSuperBlocks);
 				mAesFixedKey.ecbEncBlocks(challenger, numSuperBlocks, cipher_challenger.data()); //compute H(sum (yi^k+ yi^v))
-				EccNumber nC(mCurve);
+				Number nC POINT_INIT;
 				u8* nC_bytes = new u8[nC.sizeBytes()];
 				memcpy(nC_bytes, cipher_challenger.data(), nC.sizeBytes());
 				nC.fromBytes(nC_bytes); //c=H(sum (yi^k+ yi^v))
 
+#if defined(ENABLE_SODIUM)
+#elif defined(ENABLE_MIRACL)
 				std::cout << "s nC= " << nC << " idx= " << i << "\n";
+#endif
 
-				EccNumber nR(mCurve);
+				Number nR POINT_INIT;
 				nR = nV - nC*nK; //r=v-ck
 				nR.toBytes(sendIter_yik);
 

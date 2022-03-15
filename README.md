@@ -19,6 +19,7 @@ If you have any problem, see below.
   * For building boost, miracl and libOTe, please follow the more instructions at [`libOTe`](https://github.com/osu-crypto/libOTe). A quick try for linux: `cd libOTe/cryptoTools/thirdparty/linux/`, `bash all.get`, `cd` back to `libOTe`, `cmake .` and then `make -j`
   * For NTL with GMP and gf2x, `cd ./thirdparty/linux`, and run `all.get`. Then, you can run `cmake .` in  SpOT-PSI folder, and then `make -j`
   * See [`here`](https://github.com/osu-crypto/SpOT-PSI/blob/master/script/setup_and_compile) for full setup script
+  * Requires a [fork](https://github.com/osu-crypto/libsodium) of libsodium.
 
 NOTE: if you meet problem with NTL, try to do the following and read [`Building and using NTL with GMP`](https://www.shoup.net/ntl/doc/tour-gmp.html). If you see an error message `cmd.exe not found`, try to install https://www.nasm.us/
 
@@ -30,7 +31,7 @@ After cloning project from git,
 3. run frontend project
 
 ##### Linux:
-1. make (requirements: `CMake`, `Make`, `g++` or similar)
+1. `mkdir build && cd build && cmake -DENABLE_ALL_OT=ON -DENABLE_SODIUM=ON -DSODIUM_INCLUDE_DIRS=<sodium inc dir> -DSODIUM_LIBRARIES=<sodium lib dir> .. && make` (requirements: `CMake`, `Make`, `g++` or similar)
 2. for test:
 	./bin/frontend.exe -t
 

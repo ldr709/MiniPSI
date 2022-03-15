@@ -16,9 +16,6 @@
 #include "libOTe/TwoChooseOne/KosOtExtReceiver.h"
 #include "libOTe/TwoChooseOne/KosOtExtSender.h"
 
-#include "libOTe/TwoChooseOne/LzKosOtExtReceiver.h"
-#include "libOTe/TwoChooseOne/LzKosOtExtSender.h"
-
 #include "libOTe/TwoChooseOne/KosDotExtReceiver.h"
 #include "libOTe/TwoChooseOne/KosDotExtSender.h"
 

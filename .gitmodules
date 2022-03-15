@@ -1,1 +1,4 @@
 
+[submodule "libOTe"]
+	path = libOTe
+	url = https://github.com/ldr709/softspoken-implementation.git

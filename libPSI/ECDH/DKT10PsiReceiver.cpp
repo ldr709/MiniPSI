@@ -1,5 +1,6 @@
 #include "DKT10PsiReceiver.h"
 #include "cryptoTools/Crypto/Curve.h"
+#include "cryptoTools/Crypto/SodiumCurve.h"
 #include "cryptoTools/Crypto/sha1.h"
 #include "cryptoTools/Common/Log.h"
 #include <cryptoTools/Crypto/RandomOracle.h>
@@ -11,13 +12,31 @@
 namespace osuCrypto
 {
 
+	namespace
+	{
+#if defined(ENABLE_SODIUM)
+		using Point = Sodium::Rist25519;
+		using Number = Sodium::Prime25519;
+#define POINT_INIT {}
+#define POINT_INIT_EMPL ()
+
+#elif defined(ENABLE_MIRACL)
+		using Point = EccPoint;
+		using Number = EccNumber;
+#define POINT_INIT (mCurve)
+#define POINT_INIT_EMPL (mCurve)
+#else
+#error "No curve implementation!"
+#endif
+	}
+
     DKT10PsiReceiver::DKT10PsiReceiver()
     {
     }
     DKT10PsiReceiver::~DKT10PsiReceiver()
     {
     }
-    
+
 	void DKT10PsiReceiver::startPsi(u64 myInputSize, u64 theirInputSize, u64 secParam, block seed,span<block> inputs, span<Channel> chls)
     {
 		//####################### offline #########################
@@ -33,16 +52,20 @@ namespace osuCrypto
 		std::cout << "r mSetSeedsSize= " << mMyInputSize << " - " << mSetSeedsSize << " - " << mChoseSeedsSize << "\n";
 
 		mCurveSeed = mPrng.get<block>();
+
+#if defined(ENABLE_SODIUM)
+		mFieldSize = 256;
+#elif defined(ENABLE_MIRACL)
 		EllipticCurve mCurve(myEccpParams, OneBlock);
 		//mCurve.getMiracl().IOBASE = 10;
 		mFieldSize = mCurve.bitCount();
 
-
-		EccPoint mG(mCurve);
+		Point mG POINT_INIT;
 		mG = mCurve.getGenerator();
+#endif
 
-		std::vector<EccNumber> nSeeds;
-		std::vector<EccPoint> pG_seeds;
+		std::vector<Number> nSeeds;
+		std::vector<Point> pG_seeds;
 
 		nSeeds.reserve(mSetSeedsSize);
 		pG_seeds.reserve(mSetSeedsSize);
@@ -51,11 +74,15 @@ namespace osuCrypto
 		for (u64 i = 0; i < mSetSeedsSize; i++)
 		{
 			// get a random value from Z_p
-			nSeeds.emplace_back(mCurve);
+			nSeeds.emplace_back POINT_INIT_EMPL;
 			nSeeds[i].randomize(mPrng);
 
-			pG_seeds.emplace_back(mCurve);
+#if defined(ENABLE_SODIUM)
+			pG_seeds.emplace_back(Point::mulGenerator(nSeeds[i]));  //g^ri
+#elif defined(ENABLE_MIRACL)
+			pG_seeds.emplace_back POINT_INIT_EMPL;
 			pG_seeds[i] = mG * nSeeds[i];  //g^ri
+#endif
 		}
 		std::cout << "g^ri done" << std::endl;
 
@@ -64,9 +91,12 @@ namespace osuCrypto
 		gTimer.setTimePoint("r online start ");
 
 		u8* mG_K; chls[0].recv(mG_K);
-		EccPoint g_k(mCurve); 	g_k.fromBytes(mG_K); //receiving g^k
+		Point g_k POINT_INIT; 	g_k.fromBytes(mG_K); //receiving g^k
 
+#if defined(ENABLE_SODIUM)
+#elif defined(ENABLE_MIRACL)
 		std::cout << "r g^k= " << g_k << std::endl;
+#endif
 
 		u64 numThreads(chls.size());
 		const bool isMultiThreaded = numThreads > 1;
@@ -96,9 +126,9 @@ namespace osuCrypto
 			//EllipticCurve curve(p256k1, thrdPrng[t].get<block>());
 
 			SHA1 inputHasher;
-			EccPoint point(mCurve), yik(mCurve), xk(mCurve), gri(mCurve), xab(mCurve);
+			Point point POINT_INIT, yik POINT_INIT, xk POINT_INIT, gri POINT_INIT, xab POINT_INIT;
 
-			std::vector<EccPoint> yi; //yi=H(xi)*g^ri
+			std::vector<Point> yi; //yi=H(xi)*g^ri
 			yi.reserve(subsetInputSize);
 			int idxYi = 0;
 
@@ -110,7 +140,7 @@ namespace osuCrypto
 				std::vector<u8> sendBuff(yik.sizeBytes() * curStepSize);
 				auto sendIter = sendBuff.data();
 				//	std::cout << "send H(y)^b" << std::endl;
-			
+
 
 				//send H(y)^b
 				for (u64 k = 0; k < curStepSize; ++k)
@@ -123,7 +153,7 @@ namespace osuCrypto
 					point.randomize(toBlock(hashOut)); //H(x)
 					//std::cout << "sp  " << point << "  " << toBlock(hashOut) << std::endl;
 
-					yi.emplace_back(mCurve);
+					yi.emplace_back POINT_INIT_EMPL;
 					yi[idxYi] = (point + pG_seeds[i+k]); //H(x) *g^ri
 
 #ifdef PRINT
@@ -136,16 +166,16 @@ namespace osuCrypto
 
 				chl.asyncSend(std::move(sendBuff));  //sending yi=H(xi)*g^ri
 
-				
+
 				//compute  (g^K)^ri
-				std::vector<EccPoint> pgK_seeds;
+				std::vector<Point> pgK_seeds;
 				pgK_seeds.reserve(curStepSize);
-				
+
 				for (u64 k = 0; k < curStepSize; k++)
 				{
-					pgK_seeds.emplace_back(mCurve);
+					pgK_seeds.emplace_back POINT_INIT_EMPL;
 					pgK_seeds[k] = g_k * nSeeds[i + k];  //(g^k)^ri
-													 //std::cout << mG_seeds[i] << std::endl;		
+													 //std::cout << mG_seeds[i] << std::endl;
 				}
 
 
@@ -153,7 +183,7 @@ namespace osuCrypto
 				std::vector<u8> recvBuff(yi[0].sizeBytes() * curStepSize); //receiving yi^k = H(x)^k *g^ri^k
 				u8* xk_byte = new u8[yi[0].sizeBytes()];
 				block temp;
-#if 1				
+#if 1
 				chl.recv(recvBuff); //recv yi^k
 
 				if (recvBuff.size() != curStepSize * yi[0].sizeBytes())
@@ -223,14 +253,14 @@ namespace osuCrypto
 			for (u64 i = startIdx; i < endIdx; i += stepSizeMaskSent)
 			{
 				auto curStepSize = std::min(stepSizeMaskSent, endIdx - i);
-				
+
 				if (n1n2MaskBytes >= sizeof(u64)) //unordered_map only work for key >= 64 bits. i.e. setsize >=2^12
 				{
 					for (u64 k = 0; k < curStepSize; ++k)
 					{
 
 						auto& msk = *(u64*)(theirMasks);
-						
+
 						if (i + k == 10)
 							std::cout << "r msk: " << i+k << " - " << toBlock(msk) << std::endl;
 
@@ -295,7 +325,7 @@ namespace osuCrypto
 #endif
 #endif
 	}
-	
+
 	void DKT10PsiReceiver::startPsi_subsetsum(u64 myInputSize, u64 theirInputSize, u64 secParam, block seed, span<block> inputs, span<Channel> chls)
 	{
 		//####################### offline #########################
@@ -306,23 +336,27 @@ namespace osuCrypto
 		mTheirInputSize = theirInputSize;
 		mPrng.SetSeed(seed);
 		mIntersection.clear();
-		
+
 		getExpParams(mMyInputSize, mSetSeedsSize, mChoseSeedsSize);
 
 
 		std::cout << "r mSetSeedsSize= " << mMyInputSize << " - " << mSetSeedsSize << " - " << mChoseSeedsSize << "\n";
 
 		mCurveSeed = mPrng.get<block>();
+
+#if defined(ENABLE_SODIUM)
+		mFieldSize = 256;
+#elif defined(ENABLE_MIRACL)
 		EllipticCurve mCurve(myEccpParams, OneBlock);
 		//mCurve.getMiracl().IOBASE = 10;
 		mFieldSize = mCurve.bitCount();
 
-
-		EccPoint mG(mCurve);
+		Point mG POINT_INIT;
 		mG = mCurve.getGenerator();
+#endif
 
-		std::vector<EccNumber> nSeeds;
-		std::vector<EccPoint> pG_seeds;
+		std::vector<Number> nSeeds;
+		std::vector<Point> pG_seeds;
 
 		nSeeds.reserve(mSetSeedsSize);
 		pG_seeds.reserve(mSetSeedsSize);
@@ -331,16 +365,20 @@ namespace osuCrypto
 		for (u64 i = 0; i < mSetSeedsSize; i++)
 		{
 			// get a random value from Z_p
-			nSeeds.emplace_back(mCurve);
+			nSeeds.emplace_back POINT_INIT_EMPL;
 			nSeeds[i].randomize(mPrng);
 
-			pG_seeds.emplace_back(mCurve);
+#if defined(ENABLE_SODIUM)
+			pG_seeds.emplace_back(Point::mulGenerator(nSeeds[i]));  //g^ri
+#elif defined(ENABLE_MIRACL)
+			pG_seeds.emplace_back POINT_INIT_EMPL;
 			pG_seeds[i] = mG * nSeeds[i];  //g^ri
+#endif
 		}
 		std::cout << "g^seed done" << std::endl;
 
 
-		std::vector<std::pair<std::vector<u64>, EccPoint>> mG_pairs; //{index of sub ri}, g^(subsum ri)
+		std::vector<std::pair<std::vector<u64>, Point>> mG_pairs; //{index of sub ri}, g^(subsum ri)
 		mG_pairs.reserve(myInputSize);
 
 		std::vector<u64> indices(mSetSeedsSize);
@@ -350,7 +388,7 @@ namespace osuCrypto
 			std::iota(indices.begin(), indices.end(), 0);
 			std::random_shuffle(indices.begin(), indices.end()); //random permutation and get 1st K indices
 
-			EccPoint g_sum(mCurve);
+			Point g_sum POINT_INIT;
 
 			for (u64 j = 0; j < mChoseSeedsSize; j++)
 				g_sum = g_sum + pG_seeds[indices[j]]; //g^sum
@@ -366,17 +404,20 @@ namespace osuCrypto
 		gTimer.setTimePoint("r online start ");
 
 		u8* mG_K; chls[0].recv(mG_K);
-		EccPoint g_k(mCurve); 	g_k.fromBytes(mG_K); //receiving g^k
+		Point g_k POINT_INIT; 	g_k.fromBytes(mG_K); //receiving g^k
+#if defined(ENABLE_SODIUM)
+#elif defined(ENABLE_MIRACL)
 		std::cout << "r g^k= " << g_k << std::endl;
+#endif
 
 		//compute seeds (g^k)^ri
-		std::vector<EccPoint> pgK_seeds;
+		std::vector<Point> pgK_seeds;
 		pgK_seeds.reserve(mSetSeedsSize);
 
 		//seeds //todo: paralel
 		for (u64 i = 0; i < mSetSeedsSize; i++)
 		{
-			pgK_seeds.emplace_back(mCurve);
+			pgK_seeds.emplace_back POINT_INIT_EMPL;
 			pgK_seeds[i] = g_k * nSeeds[i];  //(g^k)^seeds
 		}
 
@@ -407,9 +448,9 @@ namespace osuCrypto
 			//EllipticCurve curve(p256k1, thrdPrng[t].get<block>());
 
 			SHA1 inputHasher;
-			EccPoint point(mCurve), yik(mCurve), xk(mCurve), gri(mCurve), xab(mCurve);
+			Point point POINT_INIT, yik POINT_INIT, xk POINT_INIT, gri POINT_INIT, xab POINT_INIT;
 
-			std::vector<EccPoint> yi; //yi=H(xi)*g^ri
+			std::vector<Point> yi; //yi=H(xi)*g^ri
 			yi.reserve(subsetInputSize);
 			int idxYi = 0;
 
@@ -434,7 +475,7 @@ namespace osuCrypto
 					point.randomize(toBlock(hashOut)); //H(x)
 													   //std::cout << "sp  " << point << "  " << toBlock(hashOut) << std::endl;
 
-					yi.emplace_back(mCurve);
+					yi.emplace_back POINT_INIT_EMPL;
 					yi[idxYi] = (point + mG_pairs[i + k].second); //H(x) *g^ri
 
 #ifdef PRINT
@@ -449,12 +490,12 @@ namespace osuCrypto
 
 
 				 //compute  (g^K)^ri from seeds
-				std::vector<EccPoint> pgK_sum;
+				std::vector<Point> pgK_sum;
 				pgK_sum.reserve(curStepSize);
 
 				for (u64 k = 0; k < curStepSize; k++)
 				{
-					pgK_sum.emplace_back(mCurve);
+					pgK_sum.emplace_back POINT_INIT_EMPL;
 					for (u64 j = 0; j < mG_pairs[i+k].first.size(); j++) //for all subset ri
 						pgK_sum[k] = pgK_sum[k] + pgK_seeds[mG_pairs[i+k].first[j]]; //(g^k)^(subsum ri)
 				}
@@ -464,7 +505,7 @@ namespace osuCrypto
 				std::vector<u8> recvBuff(yi[0].sizeBytes() * curStepSize); //receiving yi^k = H(x)^k *g^ri^k
 				u8* xk_byte = new u8[yi[0].sizeBytes()];
 				block temp;
-#if 1				
+#if 1
 				chl.recv(recvBuff); //recv yi^k
 
 				if (recvBuff.size() != curStepSize * yi[0].sizeBytes())
@@ -606,6 +647,7 @@ namespace osuCrypto
 #endif
 #endif
 	}
+
 	bool DKT10PsiReceiver::startPsi_subsetsum_malicious(u64 myInputSize, u64 theirInputSize, u64 secParam, block seed, span<block> inputs, span<Channel> chls)
 	{
 		//####################### offline #########################
@@ -623,16 +665,20 @@ namespace osuCrypto
 		std::cout << "r mSetSeedsSize= " << mMyInputSize << " - " << mSetSeedsSize << " - " << mChoseSeedsSize << "\n";
 
 		mCurveSeed = mPrng.get<block>();
+
+#if defined(ENABLE_SODIUM)
+		mFieldSize = 256;
+#elif defined(ENABLE_MIRACL)
 		EllipticCurve mCurve(myEccpParams, OneBlock);
 		//mCurve.getMiracl().IOBASE = 10;
 		mFieldSize = mCurve.bitCount();
 
-
-		EccPoint mG(mCurve);
+		Point mG POINT_INIT;
 		mG = mCurve.getGenerator();
+#endif
 
-		std::vector<EccNumber> nSeeds;
-		std::vector<EccPoint> pG_seeds;
+		std::vector<Number> nSeeds;
+		std::vector<Point> pG_seeds;
 
 		nSeeds.reserve(mSetSeedsSize);
 		pG_seeds.reserve(mSetSeedsSize);
@@ -641,16 +687,20 @@ namespace osuCrypto
 		for (u64 i = 0; i < mSetSeedsSize; i++)
 		{
 			// get a random value from Z_p
-			nSeeds.emplace_back(mCurve);
+			nSeeds.emplace_back POINT_INIT_EMPL;
 			nSeeds[i].randomize(mPrng);
 
-			pG_seeds.emplace_back(mCurve);
+#if defined(ENABLE_SODIUM)
+			pG_seeds.emplace_back(Point::mulGenerator(nSeeds[i]));  //g^ri
+#elif defined(ENABLE_MIRACL)
+			pG_seeds.emplace_back POINT_INIT_EMPL;
 			pG_seeds[i] = mG * nSeeds[i];  //g^ri
+#endif
 		}
 		std::cout << "g^seed done" << std::endl;
 
 
-		std::vector<std::pair<std::vector<u64>, EccPoint>> mG_pairs; //{index of sub ri}, g^(subsum ri)
+		std::vector<std::pair<std::vector<u64>, Point>> mG_pairs; //{index of sub ri}, g^(subsum ri)
 		mG_pairs.reserve(myInputSize);
 
 		std::vector<u64> indices(mSetSeedsSize);
@@ -660,7 +710,7 @@ namespace osuCrypto
 			std::iota(indices.begin(), indices.end(), 0);
 			std::random_shuffle(indices.begin(), indices.end()); //random permutation and get 1st K indices
 
-			EccPoint g_sum(mCurve);
+			Point g_sum POINT_INIT;
 
 			for (u64 j = 0; j < mChoseSeedsSize; j++)
 				g_sum = g_sum + pG_seeds[indices[j]]; //g^sum
@@ -679,17 +729,21 @@ namespace osuCrypto
 		gTimer.setTimePoint("r online start ");
 
 		u8* mG_K; chls[0].recv(mG_K);
-		EccPoint g_k(mCurve); 	g_k.fromBytes(mG_K); //receiving g^k
+		Point g_k POINT_INIT; 	g_k.fromBytes(mG_K); //receiving g^k
+
+#if defined(ENABLE_SODIUM)
+#elif defined(ENABLE_MIRACL)
 		std::cout << "r g^k= " << g_k << std::endl;
+#endif
 
 		//compute seeds (g^k)^ri
-		std::vector<EccPoint> pgK_seeds;
+		std::vector<Point> pgK_seeds;
 		pgK_seeds.reserve(mSetSeedsSize);
 
 		//seeds //todo: paralel
 		for (u64 i = 0; i < mSetSeedsSize; i++)
 		{
-			pgK_seeds.emplace_back(mCurve);
+			pgK_seeds.emplace_back POINT_INIT_EMPL;
 			pgK_seeds[i] = g_k * nSeeds[i];  //(g^k)^seeds
 		}
 
@@ -704,7 +758,7 @@ namespace osuCrypto
 #if 1	//generate all pairs from seeds
 		std::unordered_map<u64, std::pair<block, u64>> localMasks;
 		localMasks.reserve(inputs.size());
-		std::vector<block> xik(inputs.size()); //H(x)^k 
+		std::vector<block> xik(inputs.size()); //H(x)^k
 
 		//##################### compute/send yi=H(x)*(g^ri). recv yi^k, comp. H(x)^k  #####################
 
@@ -720,16 +774,16 @@ namespace osuCrypto
 
 			//EllipticCurve curve(p256k1, thrdPrng[t].get<block>());
 
-			EccPoint point(mCurve),  xk(mCurve), gri(mCurve), xab(mCurve);
-			std::vector<EccPoint> yi; //yi=H(xi)*g^ri
-			std::vector<EccPoint> yik;
-			std::vector<EccPoint> yiv;
-			
-			EccNumber nR(mCurve), nC(mCurve);
+			Point point POINT_INIT,  xk POINT_INIT, gri POINT_INIT, xab POINT_INIT;
+			std::vector<Point> yi; //yi=H(xi)*g^ri
+			std::vector<Point> yik;
+			std::vector<Point> yiv;
+
+			Number nR POINT_INIT, nC POINT_INIT;
 
 			for (u64 i = inputStartIdx; i < inputEndIdx; i += stepSize)  //yi=H(xi)*g^ri
 			{
-				
+
 				auto curStepSize = std::min(stepSize, inputEndIdx - i);
 				yi.reserve(curStepSize);
 
@@ -737,8 +791,8 @@ namespace osuCrypto
 				yiv.reserve(curStepSize);
 				for (u64 k = 0; k < curStepSize; k++)
 				{
-					yik.emplace_back(mCurve);
-					yiv.emplace_back(mCurve);
+					yik.emplace_back POINT_INIT_EMPL;
+					yiv.emplace_back POINT_INIT_EMPL;
 				}
 
 				std::vector<u8*> challeger_bytes(2); //(yi^k, yi^v)
@@ -761,7 +815,7 @@ namespace osuCrypto
 					point.randomize(hashX[i + k]); //H(x)
 													   //std::cout << "sp  " << point << "  " << toBlock(hashOut) << std::endl;
 
-					yi.emplace_back(mCurve);
+					yi.emplace_back POINT_INIT_EMPL;
 					yi[k] = (point + mG_pairs[i + k].second); //H(x) *g^ri
 
 #ifdef PRINT
@@ -776,12 +830,12 @@ namespace osuCrypto
 
 
 													 //compute  (g^K)^ri from seeds
-				std::vector<EccPoint> pgK_sum;
+				std::vector<Point> pgK_sum;
 				pgK_sum.reserve(curStepSize);
 
 				for (u64 k = 0; k < curStepSize; k++)
 				{
-					pgK_sum.emplace_back(mCurve);
+					pgK_sum.emplace_back POINT_INIT_EMPL;
 					for (u64 j = 0; j < mG_pairs[i + k].first.size(); j++) //for all subset ri
 						pgK_sum[k] = pgK_sum[k] + pgK_seeds[mG_pairs[i + k].first[j]]; //(g^k)^(subsum ri)
 				}
@@ -791,7 +845,7 @@ namespace osuCrypto
 				std::vector<u8> recvBuff(yi[0].sizeBytes() * curStepSize); //receiving yi^k = H(x)^k *g^ri^k
 				u8* xk_byte = new u8[yi[0].sizeBytes()];
 				block temp;
-#if 1				
+#if 1
 				chl.recv(recvBuff); //recv yi^k||yi^v...||r
 
 				if (recvBuff.size() != curStepSize * (2* yi[0].sizeBytes()+1))
@@ -802,7 +856,10 @@ namespace osuCrypto
 				auto recvIter = recvBuff.data();
 
 				nR.fromBytes(recvIter + curStepSize * (2 * yi[0].sizeBytes())); //last sizeBytes() bit
+#if defined(ENABLE_SODIUM)
+#elif defined(ENABLE_MIRACL)
 				std::cout << "r nR= " << nR << " idx= "<< i<<"\n";
+#endif
 
 				for (u64 k = 0; k < curStepSize; ++k) //ZKDL verifier
 				{
@@ -810,7 +867,7 @@ namespace osuCrypto
 					yiv[k].fromBytes(recvIter); recvIter += yik[k].sizeBytes();
 
 					challeger_bytes[0] = new u8[yik[k].sizeBytes()]; //todo: optimize
-					yik[k].toBytes(challeger_bytes[0]); //yi^k  
+					yik[k].toBytes(challeger_bytes[0]); //yi^k
 
 					challeger_bytes[1] = new u8[yiv[k].sizeBytes()];
 					yiv[k].toBytes(challeger_bytes[1]); //yi^v
@@ -827,11 +884,14 @@ namespace osuCrypto
 
 				std::vector<block> cipher_challenger(numSuperBlocks);
 				mAesFixedKey.ecbEncBlocks(challenger, numSuperBlocks, cipher_challenger.data()); //compute H(sum (yi^k+ yi^v))
-				EccNumber nC(mCurve);
+				Number nC POINT_INIT;
 				u8* nC_bytes = new u8[nC.sizeBytes()];
 				memcpy(nC_bytes, cipher_challenger.data(), nC.sizeBytes());
 				nC.fromBytes(nC_bytes); //c=H(sum (yi^k+ yi^v))
+#if defined(ENABLE_SODIUM)
+#elif defined(ENABLE_MIRACL)
 				std::cout << "r nC= " << nC << " idx= " << i << "\n";
+#endif
 
 				for (u64 k = 0; k < curStepSize; ++k) //ZKDL verifier
 				{
@@ -853,7 +913,7 @@ namespace osuCrypto
 				{
 					xk = yik[k] - pgK_sum[k]; //H(x)^k
 					u8* temp_yik = new u8[yik[k].sizeBytes()];
-					
+
 					xk.toBytes(temp_yik);
 					block blkTemp = ZeroBlock;
 					for (int idxBlock = 0; idxBlock < numSuperBlocks; idxBlock++)

@@ -36,16 +36,18 @@ using namespace osuCrypto;
 
 namespace tests_libOTe
 {
-
-
     void testNco(
         NcoOtExtSender &sender,
         const u64 &numOTs,
         PRNG &prng0,
         Channel &sendChl,
+        span<block> baseRecv,
+        const BitVector& baseChoice,
         NcoOtExtReceiver &recv,
         PRNG &prng1,
-        Channel &recvChl)
+        Channel &recvChl,
+        span<std::array<block, 2>> baseSend,
+        bool setBase = true)
     {
 
         u64 stepSize = 33;
@@ -57,8 +59,12 @@ namespace tests_libOTe
             // perform the init on each of the classes. should be performed concurrently
             auto thrd = std::thread([&]() {
                 setThreadName("EchdSender");
+                if (setBase)
+                    sender.setBaseOts(baseRecv, baseChoice, prng0, sendChl);
                 sender.init(numOTs, prng0, sendChl);
             });
+            if (setBase)
+                recv.setBaseOts(baseSend, prng1, recvChl);
             recv.init(numOTs, prng1, recvChl);
             thrd.join();
 
@@ -192,6 +198,19 @@ namespace tests_libOTe
         //}
     }
 
+    void testNco(
+        NcoOtExtSender &sender,
+        const u64 &numOTs,
+        PRNG &prng0,
+        Channel &sendChl,
+        NcoOtExtReceiver &recv,
+        PRNG &prng1,
+        Channel &recvChl)
+    {
+        testNco(sender, numOTs, prng0, sendChl, span<block>(), BitVector(),
+                recv, prng1, recvChl, span<std::array<block, 2>>(), false);
+    }
+
     void KkrtNcoOt_Test_Impl()
     {
         setThreadName("EchdSender");
@@ -235,17 +254,18 @@ namespace tests_libOTe
         auto sendChl = ep0.addChannel(name, name);
 
 
-        // set the base OTs
-        sender.setBaseOts(baseRecv, baseChoice);
-        recv.setBaseOts(baseSend);
-
         u64 stepSize = 10;
         std::vector<block> inputs(stepSize);
 
         for (size_t j = 0; j < 2; j++)
         {
             // perform the init on each of the classes. should be performed concurrently
-            auto thrd = std::thread([&]() { sender.init(numOTs, prng0, sendChl); });
+            // set the base OTs
+            auto thrd = std::thread([&]() {
+                sender.setBaseOts(baseRecv, baseChoice, prng0, sendChl);
+                sender.init(numOTs, prng0, sendChl);
+            });
+            recv.setBaseOts(baseSend, prng1, recvChl);
             recv.init(numOTs, prng1, recvChl);
             thrd.join();
 
@@ -392,10 +412,7 @@ namespace tests_libOTe
             baseRecv[i] = baseSend[i][baseChoice[i]];
         }
 
-        sender.setBaseOts(baseRecv, baseChoice);
-        recv.setBaseOts(baseSend);
-
-        testNco(sender, numOTs, prng0, sendChl, recv, prng1, recvChl);
+        testNco(sender, numOTs, prng0, sendChl, baseRecv, baseChoice, recv, prng1, recvChl, baseSend);
 
 
         auto sender2 = sender.split();
@@ -445,11 +462,7 @@ namespace tests_libOTe
 
 
 
-
-        sender.setBaseOts(baseRecv, baseChoice);
-        recv.setBaseOts(baseSend);
-
-        testNco(sender, numOTs, prng0, sendChl, recv, prng1, recvChl);
+        testNco(sender, numOTs, prng0, sendChl, baseRecv, baseChoice, recv, prng1, recvChl, baseSend);
 
 
         auto sender2 = sender.split();

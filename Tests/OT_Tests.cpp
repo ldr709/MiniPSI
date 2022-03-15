@@ -15,8 +15,8 @@
 #include "libOTe/TwoChooseOne/KosOtExtReceiver.h"
 #include "libOTe/TwoChooseOne/KosOtExtSender.h"
 
-#include "libOTe/TwoChooseOne/LzKosOtExtReceiver.h"
-#include "libOTe/TwoChooseOne/LzKosOtExtSender.h"
+//#include "libOTe/TwoChooseOne/LzKosOtExtReceiver.h"
+//#include "libOTe/TwoChooseOne/LzKosOtExtSender.h"
 
 #include "libOTe/TwoChooseOne/KosDotExtReceiver.h"
 #include "libOTe/TwoChooseOne/KosDotExtSender.h"
@@ -92,7 +92,7 @@ namespace tests_libOTe
             data[7] = _mm_set_epi64x(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
 
             //printMtx(data);
-            eklundh_transpose128(data);
+            eklundh_transpose128(data.data());
 
 
             for (auto& d : data)
@@ -123,7 +123,7 @@ namespace tests_libOTe
             data[6] = _mm_set_epi64x(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
             data[7] = _mm_set_epi64x(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
 
-            sse_transpose128(data);
+            sse_transpose128(data.data());
 
 
             for (auto& d : data)
@@ -163,7 +163,7 @@ namespace tests_libOTe
                     sub[j] = data2[j][i];
                 }
 
-                sse_transpose128(sub);
+                sse_transpose128(sub.data());
 
                 for (u64 j = 0; j < 128; ++j)
                 {
@@ -192,9 +192,9 @@ namespace tests_libOTe
             MatrixView<block> dataView(data.begin(), data.end(), 1);
             MatrixView<block> data2View(data2.begin(), data2.end(), 1);
 
-            sse_transpose(dataView, data2View);
+            transpose(dataView, data2View);
 
-            sse_transpose128(data);
+            transpose128(data.data());
 
 
 
@@ -226,7 +226,7 @@ namespace tests_libOTe
 
             MatrixView<block> dataView((block*)data.data(), 128, 8);
             MatrixView<block> data2View((block*)data2.data(), 128 * 8, 1);
-            sse_transpose(dataView, data2View);
+            transpose(dataView, data2View);
 
 
             for (u64 i = 0; i < 8; ++i)
@@ -238,7 +238,7 @@ namespace tests_libOTe
                     data128[j] = data[j][i];
                 }
 
-                sse_transpose128(data128);
+                transpose128(data128.data());
 
 
                 for (u64 j = 0; j < 128; ++j)
@@ -261,7 +261,7 @@ namespace tests_libOTe
 
             Matrix<block> data2View(1024, 2);
             memset(data2View.data(), 0, data2View.bounds()[0] * data2View.stride() * sizeof(block));
-            sse_transpose(dataView, data2View);
+            transpose(dataView, data2View);
 
             for (u64 b = 0; b < 2; ++b)
             {
@@ -278,7 +278,7 @@ namespace tests_libOTe
                             data128[j] = ZeroBlock;
                     }
 
-                    sse_transpose128(data128);
+                    transpose128(data128.data());
 
                     for (u64 j = 0; j < 128; ++j)
                     {
@@ -300,11 +300,11 @@ namespace tests_libOTe
             prng.get((u8*)in.data(), sizeof(u8) *in.bounds()[0] * in.stride());
 
             Matrix<u8> out(63, 2);
-            sse_transpose(in, out);
+            transpose(in, out);
 
 
             Matrix<u8> out2(64, 2);
-            sse_transpose(in, out2);
+            transpose(in, out2);
 
             for (u64 i = 0; i < out.bounds()[0]; ++i)
             {
@@ -338,8 +338,8 @@ namespace tests_libOTe
             Matrix<u8> out(72, 4);
             Matrix<u8> out2(72, 4);
 
-            sse_transpose(in, out);
-            sse_transpose(in2, out2);
+            transpose(in, out);
+            transpose(in2, out2);
 
             for (u64 i = 0; i < out.bounds()[0]; ++i)
             {
@@ -396,12 +396,12 @@ namespace tests_libOTe
 
 
 
-            recv.setBaseOts(baseSend);
+            recv.setBaseOts(baseSend, prng0, recvChannel);
             recv.receive(choices, recvMsg, prng0, recvChannel);
         });
 
 
-        sender.setBaseOts(baseRecv, baseChoice);
+        sender.setBaseOts(baseRecv, baseChoice, prng1, senderChannel);
         sender.send(sendMsg, prng1, senderChannel);
         thrd.join();
 
@@ -429,6 +429,7 @@ namespace tests_libOTe
 
 
 
+	/*
     void LzKosOtExt_100Receive_Test_Impl()
     {
         setThreadName("EchdSender");
@@ -494,6 +495,7 @@ namespace tests_libOTe
         //senderNetMgr.Stop();
         //recvNetMg
     }
+	*/
 
 
     void mul128b(__m128i b, __m128i a, __m128i &c0, __m128i &c1)

@@ -52,7 +52,9 @@ namespace osuCrypto
 
 
 	//static const Ecc2mParams myEccpParams = k283;
+#ifdef ENABLE_MIRACL
 	static const EccpParams myEccpParams = Curve25519;
+#endif
 	static const ZZ myPrime= mPrime256;
 
 
@@ -535,6 +537,7 @@ namespace osuCrypto
 	}
 
 
+#ifdef ENABLE_MIRACL
 	inline int ropoField2Group(EllipticCurve& mCurve, u8* buff, EccPoint& point)
 	{
 		bool success;
@@ -603,6 +606,7 @@ namespace osuCrypto
 
 		return iter;
 	}
+#endif
 
 #define SODIUM_STATIC
 #include <sodium.h>

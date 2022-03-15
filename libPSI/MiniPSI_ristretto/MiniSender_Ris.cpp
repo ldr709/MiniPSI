@@ -3,6 +3,7 @@
 #include <cryptoTools/Crypto/Commit.h>
 #include <cryptoTools/Network/Channel.h>
 #include <cryptoTools/Common/Timer.h>
+#include <cryptoTools/Crypto/SodiumCurve.h>
 #include <unordered_map>
 #include <cryptoTools/Crypto/Rijndael256.h>
 
@@ -34,7 +35,7 @@ namespace osuCrypto
 
 		mPrng.SetSeed(prng.get<block>());
 		mCurveSeed = mPrng.get<block>();
-	
+
 		simple.init(mTheirInputSize, recvMaxBinSize, recvNumDummies);
 
 		mFieldSize = crypto_core_ristretto255_BYTES;
@@ -70,13 +71,13 @@ namespace osuCrypto
 
 		//=====================Poly=====================
 		u64 degree = mTheirInputSize - 1;
-		
+
 			int numEvalPoint = std::max(mMyInputSize, mTheirInputSize);//since the multipoint evalution require |X|>= |degree| => paadding (TODO: optimze it!)
 
 			mPrime = myPrime;
 			ZZ_p::init(ZZ(mPrime));
 
-			ZZ_p* zzX = new ZZ_p[numEvalPoint]; 
+			ZZ_p* zzX = new ZZ_p[numEvalPoint];
 			ZZ_p* zzY = new ZZ_p[numEvalPoint];
 			ZZ zz;
 
@@ -95,7 +96,7 @@ namespace osuCrypto
 
 			ZZ_pX* p_tree = new ZZ_pX[degree * 2 + 1];
 			ZZ_pX* reminders = new ZZ_pX[degree * 2 + 1];
-			
+
 
 			build_tree(p_tree, zzX, degree * 2 + 1, numThreads, mPrime);
 			u8* rcvBlk=new u8[mPolyBytes];
@@ -104,10 +105,10 @@ namespace osuCrypto
 
 			std::vector<u8> recvBuffs;
 
-			
+
 				u64 iterRecvs = 0;
 				chls[0].recv(recvBuffs);
-			
+
 			gTimer.setTimePoint("s received coeff start ");
 
 
@@ -133,7 +134,7 @@ namespace osuCrypto
 				{
 					u8* pY=new u8[mPolyBytes];
 					BytesFromZZ(pY, rep(zzY[idx]), mPolyBytes);
-					std::cout << "s P(y)= " << idx << " - " << toBlock(pY) 
+					std::cout << "s P(y)= " << idx << " - " << toBlock(pY)
 						<< " - " << toBlock(pY + sizeof(block)) << std::endl;
 				}
 #endif // DEBUG_MINI_PSI_RIS
@@ -159,7 +160,7 @@ namespace osuCrypto
 
 				unsigned char* point_ri = new unsigned char[crypto_core_ristretto255_BYTES];
 
-				for (u64 idx = 0; idx < curStepSize; idx++) 
+				for (u64 idx = 0; idx < curStepSize; idx++)
 				{
 					//std::cout << "s idx= " << idx << std::endl;
 					u64 idxItem = i + idx;
@@ -182,7 +183,7 @@ namespace osuCrypto
 
 					//(g^ri)^k
 					crypto_scalarmult_ristretto255(yri_K, mK, point_ri);
-					
+
 					//SHA2
 					//std::cout <<idx << "s yri_K= " << yri_K << std::endl;
 
@@ -408,7 +409,7 @@ namespace osuCrypto
 
 					//ristretto_ropoField2Group(point_ri, point_ri, mfe25519_one);
 
-					auto permute_ri = decKey.decBlock(Block256(point_ri));					
+					auto permute_ri = decKey.decBlock(Block256(point_ri));
 					point_ri = permute_ri.data();
 
 					RepresentativeToPublicKey2(point_ri, point_ri);
@@ -420,7 +421,7 @@ namespace osuCrypto
 					//(g^ri)^k
 					crypto_scalarmult_ristretto255(yri_K, mK, point_ri);
 
-				/*	SHA2 inputHasher;  
+				/*	SHA2 inputHasher;
 					u8 hashOut[SHA2::HashSize];
 					inputHasher.Reset();
 					inputHasher.Update(yri_K);
@@ -461,9 +462,6 @@ namespace osuCrypto
 		gTimer.setTimePoint("s mask done");
 
 	}
-
-
-
 
 
 

@@ -1,6 +1,7 @@
 #include "JL10PsiSender.h"
 #include "cryptoTools/Crypto/Curve.h"
 #include "cryptoTools/Crypto/RandomOracle.h"
+#include "cryptoTools/Crypto/sha1.h"
 #include "cryptoTools/Common/Log.h"
 #include "cryptoTools/Network/Channel.h"
 
@@ -11,10 +12,11 @@ namespace osuCrypto
     {
     }
 
-
     JL10PsiSender::~JL10PsiSender()
     {
     }
+
+#ifdef ENABLE_MIRACL
     void JL10PsiSender::startPsi(u64 myInputSize, u64 theirInputSize, u64 secParam, block seed, span<block> inputs, span<Channel> chls)
     {
 		//stepSize = myInputSize;
@@ -27,7 +29,7 @@ namespace osuCrypto
 		}
 
 		//####################### offline #########################
-		
+
 
 		gTimer.reset();
 		gTimer.setTimePoint("s offline start ");
@@ -41,7 +43,7 @@ namespace osuCrypto
 		theirStepSize = mTheirInputSize / numStep;
 
 		mPrng.SetSeed(seed);
-		
+
 		EllipticCurve mCurve(myEccpParams, OneBlock);
 		mFieldSize = mCurve.bitCount();
 
@@ -60,7 +62,7 @@ namespace osuCrypto
 		g_k.toBytes(mgK_byte); //g^k
 		std::vector<u8> tempSend(g_k.sizeBytes());
 		memcpy(tempSend.data(), mgK_byte, g_k.sizeBytes());
-    
+
 		//####################### online #########################
 		gTimer.setTimePoint("s online start ");
 
@@ -80,7 +82,7 @@ namespace osuCrypto
 		u64 n1n2MaskBits = (40 + log2(mTheirInputSize*mMyInputSize));
 		u64 n1n2MaskBytes = (n1n2MaskBits + 7) / 8;
 
-		
+
 		std::vector<std::vector<u8>> sendBuff_mask(chls.size()); //H(x)^k
 
 
@@ -107,7 +109,7 @@ namespace osuCrypto
 
 
 			RandomOracle inputHasher(sizeof(block));
-			
+
 			EllipticCurve mCurve(myEccpParams, OneBlock);
 			EccPoint point(mCurve), yik(mCurve), yi(mCurve), xk(mCurve);
 			EccNumber nK(mCurve);
@@ -135,7 +137,7 @@ namespace osuCrypto
 													   //std::cout << "sp  " << point << "  " << toBlock(hashOut) << std::endl;
 					xk = (point * nK); //H(x)^k
 
-					
+
 #ifdef PRINT
 					if (i + k == 10 || i + k == 20)
 						std::cout << "s xk[" << i + k << "] " << xk << std::endl;
@@ -152,7 +154,7 @@ namespace osuCrypto
 			for (u64 i = theirInputStartIdx; i < theirInputEndIdx; i += theirStepSize)
 			{
 				auto curStepSize = std::min(theirStepSize, theirInputEndIdx - i);
-				
+
 				//receive yi=H(.)*g^ri
 				std::vector<u8> recvBuff(xk.sizeBytes() * curStepSize); //receiving yi^k = H(.)*g^ri
 
@@ -240,7 +242,7 @@ namespace osuCrypto
 
 
 	}
-	
+
 	void JL10PsiSender::startPsi_subsetsum(u64 myInputSize, u64 theirInputSize, u64 secParam, block seed, span<block> inputs, span<Channel> chls)
 	{
 		for (u64 i = 0; i < chls.size(); ++i)
@@ -512,7 +514,7 @@ namespace osuCrypto
 
 		auto routine = [&](u64 t)
 		{
-			
+
 			u64 inputStartIdx = inputs.size() * t / chls.size();
 			u64 inputEndIdx = inputs.size() * (t + 1) / chls.size();
 			u64 subsetInputSize = inputEndIdx - inputStartIdx;
@@ -588,14 +590,14 @@ namespace osuCrypto
 					yik = yi*nK; //yi^k
 
 					challeger_bytes[0] = new u8[yik.sizeBytes()];
-					yik.toBytes(challeger_bytes[0]); //yi^k  
+					yik.toBytes(challeger_bytes[0]); //yi^k
 
 
 					auto yiv = yi*nV;
 					challeger_bytes[1] = new u8[yiv.sizeBytes()];
 					yiv.toBytes(challeger_bytes[1]); //yi^v
 
-					
+
 					for (int idxChall = 0; idxChall < challeger_bytes.size(); idxChall++)
 						for (int idxBlock = 0; idxBlock < numSuperBlocks; idxBlock++)
 						{
@@ -778,7 +780,7 @@ namespace osuCrypto
 			u64 theirInputEndIdx = mTheirInputSize * (t + 1) / chls.size();
 			u64 theirSubsetInputSize = theirInputEndIdx - theirInputStartIdx;
 
-			
+
 
 
 			auto& chl = chls[t];
@@ -906,6 +908,7 @@ namespace osuCrypto
 
 
 	}
+#endif // ENABLE_MIRACL
 
 	void JL10PsiSender::startPsi_ristretoo(u64 myInputSize, u64 theirInputSize, u64 secParam, block seed, span<block> inputs, span<Channel> chls)
 	{
@@ -1033,7 +1036,7 @@ namespace osuCrypto
 						throw std::runtime_error("rt error at " LOCATION);
 					}
 
-					
+
 
 #ifdef PRINT
 					std::cout << "s xk[" << i + k << "] " << toBlock(xk) << std::endl;
@@ -1171,8 +1174,7 @@ namespace osuCrypto
 
 		mPrng.SetSeed(seed);
 
-		EllipticCurve mCurve(myEccpParams, OneBlock);
-		mFieldSize = mCurve.bitCount();
+		mFieldSize = 256;
 
 
 		unsigned char* nK = new unsigned char[crypto_core_ristretto255_SCALARBYTES];
@@ -1307,7 +1309,7 @@ namespace osuCrypto
 
 
 					challeger_bytes[0] = new u8[crypto_core_ristretto255_BYTES];
-					//yi^k  
+					//yi^k
 					memcpy(challeger_bytes[0], &yik, crypto_core_ristretto255_BYTES);
 
 					unsigned char* yiv = new unsigned char[crypto_core_ristretto255_BYTES];
@@ -1342,8 +1344,8 @@ namespace osuCrypto
 
 				std::vector<block> cipher_challenger(numSuperBlocks);
 				mAesFixedKey.ecbEncBlocks(challenger, numSuperBlocks, cipher_challenger.data()); //compute H(sum (yi^k+ yi^v))
-				
-				
+
+
 				//u8* nC_bytes = new u8[crypto_core_ristretto255_BYTES];
 				//memcpy(nC_bytes, cipher_challenger.data(), crypto_core_ristretto255_BYTES);
 				//nC.fromBytes(nC_bytes); //c=H(sum (yi^k+ yi^v))

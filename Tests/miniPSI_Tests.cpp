@@ -3,6 +3,7 @@
 #include <cryptoTools/Network/Endpoint.h>
 #include <cryptoTools/Network/IOService.h>
 #include <cryptoTools/Common/Log.h>
+#include <cryptoTools/Common/TestCollection.h>
 #include "Poly/polyNTL.h"
 #include "Poly/polyFFT.h"
 #include "PsiDefines.h"
@@ -56,13 +57,13 @@ namespace tests_libOTe
 #if 0
 	int Ristretto_Test_Impl()
 	{
-	
+
 		std::cout << "Ristretto_Test_Impl\n";
 		// -------- First party -------- Send blinded p(x)
 		unsigned char x[crypto_core_ristretto255_HASHBYTES];
 		randombytes_buf(x, sizeof x);
 		std::cout << toBlock((u8*)&x) << "\t x\n";
-		
+
 		// Compute px = p(x), a group element derived from x
 		unsigned char px[crypto_core_ristretto255_BYTES];
 		//crypto_core_ristretto255_from_hash(px, x);
@@ -116,7 +117,7 @@ namespace tests_libOTe
 
 
 		return 0;
-		
+
 	}
 
 	void Simple_Test_Impl()
@@ -181,7 +182,7 @@ namespace tests_libOTe
 
 	void testNewGroup()
 	{
-		
+
 
 	}
 
@@ -288,7 +289,7 @@ namespace tests_libOTe
 			bignum256modm a1, a2, sum;
 			ed25519_extsk(extsk, secret_key1);
 			expand256_modm(a1, extsk, 32);
-			
+
 			ed25519_extsk(extsk, secret_key2);
 			expand256_modm(a2, extsk, 32);
 			add256_modm(sum, a1, a2);
@@ -314,7 +315,7 @@ namespace tests_libOTe
 			print_32bits(pk_sum_test, "pk_sum_test");
 		}
 
-	
+
 		{
 			curved25519_key secret_key1, public_key1, secret_key2, public_key2, sk_sum, pk_sum, pk_sum_test;
 			prng.get(secret_key1, 32);
@@ -364,6 +365,7 @@ namespace tests_libOTe
 #endif
 	void curveTest()
 	{
+#ifdef ENABLE_MIRACL
 		PRNG prng0(_mm_set_epi32(4253465, 3434565, 234435, 23987045));
 		u64 setSenderSize = 1 << 4;
 		EllipticCurve mCurve(Curve25519, OneBlock);
@@ -375,7 +377,7 @@ namespace tests_libOTe
 
 		big varX=mirvar(mrc, 0);
 		std::cout << varX << "\n";
-		
+
 		bytes_to_big(mrc, 32, (char*)src, varX);
 		std::cout << varX << "\n";
 
@@ -416,7 +418,7 @@ namespace tests_libOTe
 		mG = mCurve.getGenerator();
 		EccNumber nK(mCurve);
 		nK.randomize(prng0);
-		
+
 		u64 mPolyBytes = mG.sizeBytes();// mCurve.bitCount() / 8;
 
 		std::cout << "r mFieldSize= " << mCurve.bitCount() << " => byte = " <<  mPolyBytes << "\n";
@@ -510,12 +512,12 @@ namespace tests_libOTe
 			memcpy((u8*)&lastblk, yi_bytes + 2 * sizeof(block), mPolyBytes - 2 * sizeof(block));
 
 			std::cout << "y[ " << idx << "] = " << toBlock(yi_bytes)
-					<< " - " << toBlock(yi_bytes + sizeof(block)) 
+					<< " - " << toBlock(yi_bytes + sizeof(block))
 					<< " - " << lastblk << std::endl;
 
 			EccPoint point_ri(mCurve);
 			point_ri.fromBytes(yi_bytes);
-			
+
 			//if (idx < 4)
 				std::cout << "point_ri[ " <<idx <<"] = " << point_ri << std::endl;
 
@@ -523,10 +525,14 @@ namespace tests_libOTe
 		}
 #endif
 
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 	}
 
 	void MiniPSI_impl2()
 	{
+#ifdef ENABLE_MIRACL
 		setThreadName("EchdSender");
 		u64 setSenderSize = 1 << 6, setRecvSize = 1 << 7, psiSecParam = 40, numThreads(1);
 
@@ -608,11 +614,15 @@ namespace tests_libOTe
 		ep0.stop(); ep1.stop();	ios.stop();
 
 
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 	}
 
 
 	void MiniPSI_hasing_impl()
 	{
+#ifdef ENABLE_MIRACL
 		setThreadName("EchdSender");
 		u64 setSenderSize = 1 << 6, setRecvSize = 1 << 7, psiSecParam = 40, numThreads(2);
 
@@ -692,12 +702,15 @@ namespace tests_libOTe
 
 		ep0.stop(); ep1.stop();	ios.stop();
 
-
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 	}
 
 
 	void MiniPSI_malicious_impl()
 	{
+#ifdef ENABLE_MIRACL
 		setThreadName("EchdSender");
 		u64 setSenderSize = 1 << 6, setRecvSize = 1 << 6, psiSecParam = 40, numThreads(1);
 
@@ -779,6 +792,9 @@ namespace tests_libOTe
 		ep0.stop(); ep1.stop();	ios.stop();
 
 
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 	}
 
 
@@ -873,6 +889,7 @@ namespace tests_libOTe
 
 	void JL10PSI_impl()
 	{
+#ifdef ENABLE_MIRACL
 		setThreadName("EchdSender");
 		u64 setSenderSize = 1 << 6, setRecvSize = 1 <<8, psiSecParam = 40, numThreads(2);
 
@@ -953,12 +970,16 @@ namespace tests_libOTe
 		ep0.stop(); ep1.stop();	ios.stop();
 
 
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 	}
 
 
 
 	void JL10PSI_subsetsum_impl()
 	{
+#ifdef ENABLE_MIRACL
 		setThreadName("EchdSender");
 		u64 setSenderSize = 1 <<7, setRecvSize = 1 <<7, psiSecParam = 40, numThreads(1);
 
@@ -1039,6 +1060,9 @@ namespace tests_libOTe
 		ep0.stop(); ep1.stop();	ios.stop();
 
 
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 	}
 
 
@@ -1046,6 +1070,7 @@ namespace tests_libOTe
 
 	void JL10PSI_subsetsum_malicious_impl()
 	{
+#ifdef ENABLE_MIRACL
 		setThreadName("EchdSender");
 		u64 setSenderSize = 1 << 6, setRecvSize = 1 << 6, psiSecParam = 40, numThreads(1);
 
@@ -1126,11 +1151,15 @@ namespace tests_libOTe
 		ep0.stop(); ep1.stop();	ios.stop();
 
 
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 	}
 
 
 	void exp_test()
 	{
+#ifdef ENABLE_MIRACL
 		std::cout << "curveParam = k283\n";
 		int n = 10, k = 3;
 		PRNG prng(ZeroBlock);
@@ -1173,6 +1202,9 @@ namespace tests_libOTe
 		std::cout << newG << std::endl;
 
 
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 	}
 
 
@@ -1180,7 +1212,7 @@ namespace tests_libOTe
 	{
 		std::string sss;
 		for (int j = 0; j < size; j++)
-			sss.append(ToString(static_cast<unsigned int>(Z[j])));
+			sss.append(std::to_string(static_cast<unsigned int>(Z[j])));
 
 		return sss;
 	}
@@ -1189,6 +1221,7 @@ namespace tests_libOTe
 
 	void evalExp()
 	{
+#ifdef ENABLE_MIRACL
 		PRNG prng(_mm_set_epi32(4253465, 3434565, 234435, 23987045));
 		EllipticCurve mCurve(myEccpParams, OneBlock);
 		EccPoint mG(mCurve);
@@ -1434,7 +1467,7 @@ namespace tests_libOTe
 			std::cout << "checkUnique. : " << checkUnique[i] << "\n";
 
 			}*/
-#endif	
+#endif
 		}
 
 		//////============recursive h>2 HSS g^ri==========
@@ -1568,13 +1601,17 @@ namespace tests_libOTe
 			std::cout << "checkUnique. : " << checkUnique[i] << "\n";
 
 			}*/
-#endif	
+#endif
 		}
 
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 }
 
 
 	void subsetSum_test() {
+#ifdef ENABLE_MIRACL
 
 		PRNG prng(_mm_set_epi32(4253465, 3434565, 234435, 23987045));
 
@@ -1637,10 +1674,14 @@ namespace tests_libOTe
 			std::cout << "checkUnique. : " << checkUnique[i] << "\n";
 
 		}
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 	}
 
 
 
+#ifdef ENABLE_MIRACL
 	void subsetSum(vector<EccPoint>& g_sum) { //fail
 
 		PRNG prng(_mm_set_epi32(4253465, 3434565, 234435, 23987045));
@@ -1708,10 +1749,12 @@ namespace tests_libOTe
 		}
 
 	}
+#endif
 
 
 	void schnorrZKDL()
 	{
+#ifdef ENABLE_MIRACL
 		PRNG prng(ZeroBlock);
 		EllipticCurve mCurve(myEccpParams, OneBlock);
 		EccPoint mG(mCurve);
@@ -1741,7 +1784,7 @@ namespace tests_libOTe
 
 
 		block* challenger = new block[numSuperBlocks]; //g + g^k+g^v
-		std::vector<block> cipher_challenger(numSuperBlocks);// 
+		std::vector<block> cipher_challenger(numSuperBlocks);//
 
 		for (int i = 0; i < numSuperBlocks; i++)
 			challenger[i] = ZeroBlock;
@@ -1784,9 +1827,12 @@ namespace tests_libOTe
 
 
 
+#else
+		throw UnitTestSkipped("ENABLE_MIRACL must be defined.");
+#endif
 	}
-	
-	
+
+
 	/*void subsetSum_test() {
 
 		vector<EccPoint> points;

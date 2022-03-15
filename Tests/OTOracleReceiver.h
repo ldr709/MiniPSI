@@ -20,7 +20,7 @@ namespace tests_libOTe
         bool hasBaseOts() const override { return true; }
 
         void setBaseOts(
-            gsl::span<std::array<block, 2>> baseSendOts) override {};
+            gsl::span<std::array<block, 2>> baseSendOts, PRNG& prng, Channel& chl) override {};
         void receive(
             const BitVector& choices,
             gsl::span<block> messages,

@@ -1,5 +1,5 @@
 #pragma once
-// This file and the associated implementation has been placed in the public domain, waiving all copyright. No restrictions are placed on its use. 
+// This file and the associated implementation has been placed in the public domain, waiving all copyright. No restrictions are placed on its use.
 #include <array>
 #include <cryptoTools/Crypto/PRNG.h>
 #include <cryptoTools/Common/Timer.h>
@@ -22,14 +22,15 @@ using namespace NTL;
 namespace osuCrypto
 {
 
+#ifdef ENABLE_MIRACL
     class MiniReceiver : public TimerAdapter
     {
     public:
-     
+
 		u64 mSetSeedsSize, mChoseSeedsSize, mCurveByteSize, mBoundCoeffs;
 		Ecc2mParams mCurveParam;
 		block mCurveSeed;
-		
+
 		//std::vector<u8*> mSeeds; //all ri in bytes for computing (g^k)^(subsum ri) later
 		//std::vector<std::pair<u64, std::vector<u64>>> mSubsetSum; //all ri in sum ri
 
@@ -64,14 +65,15 @@ namespace osuCrypto
 		void outputBigPoly(u64 myInputSize, u64 theirInputSize, u64 psiSecParam, PRNG& prng, span<block> inputs, span<Channel> chls);
 		void outputHashing(u64 myInputSize, u64 theirInputSize, u64 psiSecParam, PRNG& prng, span<block> inputs, span<Channel> chls);
 		void outputSimpleHashing(u64 myInputSize, u64 theirInputSize, u64 psiSecParam, PRNG& prng, span<block> inputs, span<Channel> chls, u64 numBins=8);
-		
+
 		bool outputBigPoly_malicious(u64 myInputSize, u64 theirInputSize, u64 psiSecParam, PRNG& prng, span<block> inputs, span<Channel> chls);
 
-		
+
 		//void output(span<block> inputs, span<Channel> chls);
 		//void outputBestComm(span<block> inputs, span<Channel> chls);
 		//void outputBigPoly(span<block> inputs, span<Channel> chls);
-		
+
     };
+#endif // ENABLE_MIRACL
 
 }

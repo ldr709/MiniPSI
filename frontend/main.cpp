@@ -3,6 +3,7 @@
 //using namespace std;
 #include "tests_cryptoTools/UnitTests.h"
 #include "libOTe_Tests/UnitTests.h"
+#include "Tests/UnitTests.h"
 #include <cryptoTools/gsl/span>
 
 #include <cryptoTools/Common/Matrix.h>
@@ -35,8 +36,8 @@ using namespace osuCrypto;
 
 #include "libOTe/NChooseK/AknOtReceiver.h"
 #include "libOTe/NChooseK/AknOtSender.h"
-#include "libOTe/TwoChooseOne/LzKosOtExtReceiver.h"
-#include "libOTe/TwoChooseOne/LzKosOtExtSender.h"
+//#include "libOTe/TwoChooseOne/LzKosOtExtReceiver.h"
+//#include "libOTe/TwoChooseOne/LzKosOtExtSender.h"
 
 #include "CLP.h"
 #include "main.h"
@@ -56,8 +57,8 @@ using namespace osuCrypto;
 #include "libOTe/TwoChooseOne/KosOtExtReceiver.h"
 #include "libOTe/TwoChooseOne/KosOtExtSender.h"
 
-#include "libOTe/TwoChooseOne/LzKosOtExtReceiver.h"
-#include "libOTe/TwoChooseOne/LzKosOtExtSender.h"
+//#include "libOTe/TwoChooseOne/LzKosOtExtReceiver.h"
+//#include "libOTe/TwoChooseOne/LzKosOtExtSender.h"
 
 #include "libOTe/TwoChooseOne/KosDotExtReceiver.h"
 #include "libOTe/TwoChooseOne/KosDotExtSender.h"
@@ -333,6 +334,7 @@ void JL10Receiver(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 numTh
 
 
 
+#ifdef ENABLE_MIRACL
 void Mini19Sender(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 numBins, u64 numThreads = 1)
 {
     u64 psiSecParam = 40;
@@ -469,6 +471,7 @@ void Mini19Receiver(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 num
 
     ep0.stop(); ios.stop();
 }
+#endif
 
 
 void Mini19Sender_Ris(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64 numBins, u64 numThreads = 1)
@@ -610,6 +613,7 @@ void Mini19Receiver_Ris(u64 mySetSize, u64 theirSetSize, string ipAddr_Port, u64
 
 
 
+#ifdef ENABLE_MIRACL
 void MiniPSI_impl()
 {
     setThreadName("EchdSender");
@@ -695,17 +699,19 @@ void MiniPSI_impl()
 
 
 }
+#endif
 
 
 inline std::string arrU8toString(u8* Z, int size)
 {
     std::string sss;
     for (int j = 0; j < size; j++)
-        sss.append(ToString(static_cast<unsigned int>(Z[j])));
+        sss.append(std::to_string(static_cast<unsigned int>(Z[j])));
 
     return sss;
 }
 
+#ifdef ENABLE_MIRACL
 void subsetSum_test() {
 
     PRNG prng(_mm_set_epi32(4253465, 3434565, 234435, 23987045));
@@ -1250,6 +1256,7 @@ void testCurve(int n)
     cout << gTimer << "\n";
 
 }
+#endif
 
 #include <fstream>
 void get_bin_size_list()
@@ -1330,6 +1337,12 @@ int main(int argc, char** argv)
 
     MiniPSI_impl();
     return 0;*/
+
+    if (argc > 1 && strcmp(argv[1], "-u") == 0)
+    {
+        tests_libOTe::tests_all();
+        return 0;
+    }
 
 
     string ipadrr = "localhost:1212";

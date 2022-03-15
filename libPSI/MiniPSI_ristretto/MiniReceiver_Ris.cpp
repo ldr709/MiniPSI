@@ -4,6 +4,8 @@
 #include <cryptoTools/Common/Timer.h>
 #include <cryptoTools/Crypto/PRNG.h>
 #include <cryptoTools/Crypto/Commit.h>
+#include <cryptoTools/Crypto/Curve.h>
+#include <cryptoTools/Crypto/SodiumCurve.h>
 #include <cryptoTools/Network/Channel.h>
 #include "libOTe/TwoChooseOne/IknpOtExtSender.h"
 #include "Poly/polyFFT.h"
@@ -18,6 +20,7 @@ namespace osuCrypto
 {
 
 
+#ifdef ENABLE_MIRACL
 	void MiniReceiver_Ris::expTinvert(u64 myInputSize, u64 psiSecParam, PRNG& prng)
 	{
 		mMyInputSize = myInputSize;
@@ -36,7 +39,7 @@ namespace osuCrypto
 		std::vector<EccPoint> pG_seeds;
 		nSeeds.reserve(mSetSeedsSize);
 		pG_seeds.reserve(mSetSeedsSize);
-		
+
 		//seeds
 		for (u64 i = 0; i < mSetSeedsSize; i++)
 		{
@@ -92,12 +95,13 @@ namespace osuCrypto
 				cnt_call_T_invert++;
 			} while (buffs.size() == 0);
 		}
-	
+
 		gTimer.setTimePoint("Tinvert done");
 		std::cout << "#cnt_call_Tinvert: " << cnt_call_T_invert << "\t | \t";
 		std::cout << "#cnt_call_PI_invert: " << cnt_call_PI_invert << "\n";
 		std::cout << gTimer << std::endl;
 	}
+#endif // ENABLE_MIRACL
 
 
 	void MiniReceiver_Ris::outputBigPoly(u64 myInputSize, u64 theirInputSize, u64 psiSecParam, PRNG & prng, span<block> inputs, span<Channel> chls)
@@ -118,7 +122,7 @@ namespace osuCrypto
 		mMyInputSize = myInputSize;
 		mTheirInputSize = theirInputSize;
 		mPrng.SetSeed(prng.get<block>());
-		
+
 		//2*number of group needded for T^-1
 		getBestExpParams(2*mMyInputSize, mSetSeedsSize, mChoseSeedsSize, mBoundCoeffs);
 
@@ -154,12 +158,12 @@ namespace osuCrypto
 		mG_pairs_subsetsum.reserve(myInputSize);
 
 		std::set<u64> indices;
-		
+
 		mIntCi.resize(mMyInputSize);
 
 		for (u64 i = 0; i < myInputSize; i++)
 		{
-			
+
 			std::vector<unsigned char*> buffs;
 
 			unsigned char g_sum[crypto_core_ristretto255_BYTES] = {};
@@ -198,12 +202,12 @@ namespace osuCrypto
 					//}
 				}
 				//g_sum = mG * ri[i];
-				
+
 
 				buffs.clear();
 				ristretto_ropoGroup2Field(g_sum, buffs, mfe25519_one);
 			} while (buffs.size() ==0);
-			
+
 #ifdef DEBUG_MINI_PSI_RIS
 			std::cout << toBlock((u8*)&g_sum) << "\t r orignial point#######\n";
 #endif // DEBUG_MINI_PSI_RIS
@@ -228,7 +232,7 @@ namespace osuCrypto
 
 			do {
 				buffs.clear();
-				
+
 				crypto_core_ristretto255_scalar_random(mScalars[i]);
 				crypto_scalarmult_ristretto255_base(g_sum, mScalars[i]);
 				ristretto_ropoGroup2Field(g_sum, buffs, mfe25519_one);
@@ -248,7 +252,7 @@ namespace osuCrypto
 
 		}
 #endif
-		
+
 		std::cout << "r mG_pairs done" << std::endl;
 
 		//####################### online #########################
@@ -296,11 +300,11 @@ namespace osuCrypto
 #ifdef MINI_PSI_Subsetsum
 
 			ZZFromBytes(zz, mG_pairs_subsetsum[idx].second, mPolyBytes);
-			
+
 #ifdef DEBUG_MINI_PSI_RIS
-			std::cout << idx << " r P(x)= " << toBlock((u8*)mG_pairs_subsetsum[idx].second) 
+			std::cout << idx << " r P(x)= " << toBlock((u8*)mG_pairs_subsetsum[idx].second)
 				<< " - " << toBlock(mG_pairs_subsetsum[idx].second + sizeof(block)) << std::endl;
-			
+
 			unsigned char* point_ri = new unsigned char[crypto_core_ristretto255_BYTES];
 			ristretto_ropoField2Group(mG_pairs_subsetsum[idx].second, point_ri,mfe25519_one);
 			std::cout << "r point_ri= " << toBlock((u8*)point_ri) << "\n";
@@ -333,7 +337,7 @@ namespace osuCrypto
 			BytesFromZZ(sendBuff.data() + iterSends, rep(Polynomial.rep[c]), mPolyBytes);
 
 #ifdef DEBUG_MINI_PSI_RIS
-			std::cout << "r SetCoeff rcvBlk= " << c << " - " 
+			std::cout << "r SetCoeff rcvBlk= " << c << " - "
 				<< toBlock(sendBuff.data() + iterSends) << "\t"
 			<< toBlock(sendBuff.data() + iterSends+sizeof(block)) << std::endl;
 #endif // DEBUG_MINI_PSI_RIS

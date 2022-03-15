@@ -1,5 +1,6 @@
 #include "EcdhPsiSender.h"
 #include "cryptoTools/Crypto/Curve.h"
+#include "cryptoTools/Crypto/SodiumCurve.h"
 #include "cryptoTools/Crypto/RandomOracle.h"
 #include "cryptoTools/Common/Log.h"
 #include "cryptoTools/Network/Channel.h"
@@ -8,6 +9,23 @@
 
 namespace osuCrypto
 {
+	namespace
+	{
+#if defined(ENABLE_SODIUM)
+		using Point = Sodium::Rist25519;
+		using Number = Sodium::Prime25519;
+#define POINT_INIT {}
+#define POINT_INIT_EMPL ()
+
+#elif defined(ENABLE_MIRACL)
+		using Point = EccPoint;
+		using Number = EccNumber;
+#define POINT_INIT (curve)
+#define POINT_INIT_EMPL (curve)
+#else
+#error "No curve implementation!"
+#endif
+	}
 
     EcdhPsiSender::EcdhPsiSender()
     {
@@ -48,14 +66,17 @@ namespace osuCrypto
 			u64 theirInputEndIdx = mTheirInputSize * (t + 1) / chls.size();
 			u64 theirSubsetInputSize = theirInputEndIdx - theirInputStartIdx;
 
-			
+
             auto& chl = chls[t];
             auto& prng = thrdPrng[t];
 
+#if defined(ENABLE_SODIUM)
+#elif defined(ENABLE_MIRACL)
 			EllipticCurve curve(myEccpParams, thrdPrng[t].get<block>());
+#endif
 			RandomOracle inputHasher(sizeof(block));
-			EccNumber a(curve);
-			EccPoint xa(curve), point(curve), yb(curve), yba(curve);
+			Number a POINT_INIT;
+			Point xa POINT_INIT, point POINT_INIT, yb POINT_INIT, yba POINT_INIT;
 			a.randomize(RsSeed);
 
 			sendBuff2[t].resize(maskSizeByte * theirSubsetInputSize);
@@ -83,7 +104,7 @@ namespace osuCrypto
 #ifdef PRINT
 					if (i == 0)
 						std::cout << "xa[" << i << "] " << xa << std::endl;
-#endif	
+#endif
 					xa.toBytes(sendIter);
 					sendIter += xa.sizeBytes();
 				}
@@ -135,7 +156,7 @@ namespace osuCrypto
 				}
 				//std::cout << "dones send H(y)^b^a" << std::endl;
 			}
-      
+
 			//chl.asyncSend(std::move(sendBuff2[t]));
 
 
@@ -173,11 +194,6 @@ namespace osuCrypto
 
 	void EcdhPsiSender::sendInput_Curve25519(span<block> inputs, span<Channel> chls)
 	{
-		std::cout << "curveParam = Curve25519\n";
-
-		auto curveParam = Curve25519;
-
-
 		u64 maskSizeByte = (40 + log2(inputs.size() * mTheirInputSize) + 7) / 8;
 
 		std::vector<PRNG> thrdPrng(chls.size());
@@ -208,10 +224,13 @@ namespace osuCrypto
 			auto& chl = chls[t];
 			auto& prng = thrdPrng[t];
 
+#if defined(ENABLE_SODIUM)
+#elif defined(ENABLE_MIRACL)
 			EllipticCurve curve(myEccpParams, thrdPrng[t].get<block>());
+#endif
 			RandomOracle inputHasher(sizeof(block));
-			EccNumber a(curve);
-			EccPoint xa(curve), point(curve), yb(curve), yba(curve);
+			Number a POINT_INIT;
+			Point xa POINT_INIT, point POINT_INIT, yb POINT_INIT, yba POINT_INIT;
 			a.randomize(RsSeed);
 
 			sendBuff2[t].resize(maskSizeByte * subsetInputSize);
@@ -239,7 +258,7 @@ namespace osuCrypto
 #ifdef PRINT
 					if (i == 0)
 						std::cout << "xa[" << i << "] " << xa << std::endl;
-#endif	
+#endif
 					xa.toBytes(sendIter);
 					sendIter += xa.sizeBytes();
 				}
@@ -331,10 +350,6 @@ namespace osuCrypto
 
 	void EcdhPsiSender::sendInput_Ristretto(span<block> inputs, span<Channel> chls)
 	{
-		std::cout << "curveParam = Ristretto\n";
-
-		auto curveParam = Curve25519;
-
 		u64 maskSizeByte = (40 + log2(inputs.size()* mTheirInputSize) + 7) / 8;
 
 		std::vector<PRNG> thrdPrng(chls.size());
@@ -408,7 +423,7 @@ namespace osuCrypto
 #ifdef PRINT
 					if (i == 0)
 						std::cout << "xa[" << i << "] " << xa << std::endl;
-#endif	
+#endif
 					memcpy(sendBuff.data() + k * crypto_core_ristretto255_BYTES, xa, crypto_core_ristretto255_BYTES);
 				}
 				chl.asyncSend(std::move(sendBuff));	//send H(x)^a
@@ -525,10 +540,10 @@ namespace osuCrypto
 			sendInput_k283(inputs, chls);
 		else if (curveType == 1)
 			sendInput_Curve25519(inputs, chls);
-		else 
+		else
 			sendInput_Ristretto(inputs, chls);
 	}
 
-	
+
 
 }
